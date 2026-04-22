@@ -1,7 +1,7 @@
 #include "movement.h"
 #include "open_interface.h"
 
-int move_forward(oi_t *sensor_data, int speed, double distance_cm) {
+double move_forward(oi_t *sensor_data, int speed, double distance_cm) {
     double distance_mm = distance_cm * 10.0;
     double sum = 0;
 
@@ -14,7 +14,7 @@ int move_forward(oi_t *sensor_data, int speed, double distance_cm) {
         // Check bump sensors every cycle
         if (sensor_data->bumpLeft || sensor_data->bumpRight) {
             oi_setWheels(0, 0);
-            return 1;  // Bump detected
+            return sum / 10.0;  // Bump detected
         }
     }
 

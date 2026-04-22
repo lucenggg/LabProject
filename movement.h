@@ -4,14 +4,14 @@
 #include "open_interface.h"
 
 /**
- * Move the CyBot forward by distance_cm centimeters at the given speed.
+ * Move the CyBot forward by `distance_cm` centimeters at the given speed.
  * Checks bump sensors every update cycle.
- * Returns 1 if a bump sensor was triggered (movement stopped early), 0 otherwise.
+ * Returns the distance actually traveled, in centimeters.
  */
-int move_forward(oi_t *sensor_data, int speed, double distance_cm);
+double move_forward(oi_t *sensor_data, int speed, double distance_cm);
 
 /**
- * Move the CyBot backward by distance_cm centimeters at the given speed.
+ * Move the CyBot backward by `distance_cm` centimeters at the given speed.
  */
 void move_backward(oi_t *sensor_data, int speed, double distance_cm);
 
