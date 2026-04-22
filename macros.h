@@ -8,8 +8,6 @@
 #ifndef LUCENG_MACROS_H_
 #define LUCENG_MACROS_H_
 
-#include <inc/tm4c123gh6pm.h>
-
 #define cat(x,y) cat__(x,y)
 #define cat__(x,y) x ## y
 
