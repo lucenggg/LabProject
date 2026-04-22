@@ -1,12 +1,14 @@
 /*
  * bit_fiddling.h
  *
- *  Created on: Apr 15, 2026
- *      Author: luceng
+ *  Created on: Apr 22, 2026
+ *      Author: Lucas England
  */
 
 #ifndef LUCENG_MACROS_H_
 #define LUCENG_MACROS_H_
+
+#include <inc/tm4c123gh6pm.h>
 
 #define cat(x,y) cat__(x,y)
 #define cat__(x,y) x ## y
@@ -44,4 +46,4 @@
 #define BIT_30 0x40000000
 #define BIT_31 0x80000000
 
-#endif /* BIT_FIDDLING_H_ */
+#endif /* LUCENG_MACROS_H_ */
