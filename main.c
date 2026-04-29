@@ -752,20 +752,20 @@ bool boundary_detected(void) {
     oi_update(sensor_data);
 
     return (
-        sensor_data->cliffFrontLeftSignal < CLIFF_SENSOR_THRESHOLD_BLACK ||
-        sensor_data->cliffFrontRightSignal < CLIFF_SENSOR_THRESHOLD_BLACK ||
-        sensor_data->cliffLeftSignal < CLIFF_SENSOR_THRESHOLD_BLACK ||
-        sensor_data->cliffRightSignal < CLIFF_SENSOR_THRESHOLD_BLACK
+        sensor_data->cliffFrontLeftSignal < CLIFF_SENSOR_THRESHOLD_WHITE ||
+        sensor_data->cliffFrontRightSignal < CLIFF_SENSOR_THRESHOLD_WHITE ||
+        sensor_data->cliffLeftSignal < CLIFF_SENSOR_THRESHOLD_WHITE ||
+        sensor_data->cliffRightSignal < CLIFF_SENSOR_THRESHOLD_WHITE
     );
 }
 
 bool hole_detected(void) {
     oi_update(sensor_data);
 
-    return (sensor_data->cliffFrontLeftSignal > CLIFF_SENSOR_THRESHOLD_WHITE ||
-        sensor_data->cliffFrontRightSignal > CLIFF_SENSOR_THRESHOLD_WHITE ||
-        sensor_data->cliffLeftSignal > CLIFF_SENSOR_THRESHOLD_WHITE ||
-        sensor_data->cliffRightSignal > CLIFF_SENSOR_THRESHOLD_WHITE
+    return (sensor_data->cliffFrontLeftSignal > CLIFF_SENSOR_THRESHOLD_BLACK ||
+        sensor_data->cliffFrontRightSignal > CLIFF_SENSOR_THRESHOLD_BLACK ||
+        sensor_data->cliffLeftSignal > CLIFF_SENSOR_THRESHOLD_BLACK ||
+        sensor_data->cliffRightSignal > CLIFF_SENSOR_THRESHOLD_BLACK
     );
 }
 
