@@ -33,7 +33,7 @@ main.c
 
 //  Object Classification Thresholds 
 #define IR_OBJECT_RAW_THRESHOLD 150     // Raw IR jump to detect an object edge
-#define THIN_PILLAR_MAX_WIDTH   6.0    // Max width (cm) for a "thin" pillar
+#define THIN_PILLAR_MAX_WIDTH   15.0    // Max width (cm) for a "thin" pillar
 #define MIN_CLUSTER_SIZE        3       // Minimum pillars to qualify as a cluster
 
 //  Cluster Gap Tolerance 
