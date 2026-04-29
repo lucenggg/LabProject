@@ -744,25 +744,28 @@ void roam(void) {
     turn_left(sensor_data, TURN_SPEED, angle);
 }
 
+#define CLIFF_SENSOR_THRESHOLD_BLACK 250
+#define CLIFF_SENSOR_THRESHOLD_WHITE 2700
+
 // BOUNDARY 
 bool boundary_detected(void) {
     oi_update(sensor_data);
 
     return (
-        sensor_data->cliffFrontLeftSignal < 250 ||
-        sensor_data->cliffFrontRightSignal < 250 ||
-        sensor_data->cliffLeftSignal < 250 ||
-        sensor_data->cliffRightSignal < 250
+        sensor_data->cliffFrontLeftSignal < CLIFF_SENSOR_THRESHOLD_BLACK ||
+        sensor_data->cliffFrontRightSignal < CLIFF_SENSOR_THRESHOLD_BLACK ||
+        sensor_data->cliffLeftSignal < CLIFF_SENSOR_THRESHOLD_BLACK ||
+        sensor_data->cliffRightSignal < CLIFF_SENSOR_THRESHOLD_BLACK
     );
 }
 
 bool hole_detected(void) {
     oi_update(sensor_data);
 
-    return (sensor_data->cliffFrontLeftSignal > 2700 ||
-        sensor_data->cliffFrontRightSignal > 2700 ||
-        sensor_data->cliffLeftSignal > 2700 ||
-        sensor_data->cliffRightSignal > 2700
+    return (sensor_data->cliffFrontLeftSignal > CLIFF_SENSOR_THRESHOLD_WHITE ||
+        sensor_data->cliffFrontRightSignal > CLIFF_SENSOR_THRESHOLD_WHITE ||
+        sensor_data->cliffLeftSignal > CLIFF_SENSOR_THRESHOLD_WHITE ||
+        sensor_data->cliffRightSignal > CLIFF_SENSOR_THRESHOLD_WHITE
     );
 }
 
