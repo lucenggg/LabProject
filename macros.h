@@ -11,6 +11,8 @@
 #define cat(x,y) cat__(x,y)
 #define cat__(x,y) x ## y
 
+#define BIT(b) cat(BIT_, b);
+
 #define BIT_0 0x1
 #define BIT_1 0x2
 #define BIT_2 0x4
