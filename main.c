@@ -20,7 +20,7 @@ main.c
 #include <stdbool.h>
 #include <string.h>
 
-//  Configuration Constants
+//  Configuration Constants 
 #define SCAN_RESOLUTION         3       // Degrees per scan step
 #define IR_SAMPLES              5       // IR readings to average per angle
 #define MAX_OBJECTS             20      // Maximum individual objects to track
@@ -31,20 +31,20 @@ main.c
 #define OBSTACLE_DISTANCE       25      // Distance to trigger obstacle avoidance (cm)
 #define NUM_SCAN_ANGLES         ((180 / SCAN_RESOLUTION) + 1)
 
-//  Object Classification Thresholds
+//  Object Classification Thresholds 
 #define IR_OBJECT_RAW_THRESHOLD 150     // Raw IR jump to detect an object edge
-#define THIN_PILLAR_MAX_WIDTH   60.0    // Max width (cm) for a "thin" pillar
+#define THIN_PILLAR_MAX_WIDTH   6.0    // Max width (cm) for a "thin" pillar
 #define MIN_CLUSTER_SIZE        3       // Minimum pillars to qualify as a cluster
 
-//  Cluster Gap Tolerance
+//  Cluster Gap Tolerance 
 // Adjacent thin pillars separated by <= this many degrees are treated as one cluster
 #define CLUSTER_GAP_DEG         15
 
-//  Sound Configuration (Open Interface Song)
+//  Sound Configuration (Open Interface Song) 
 // Song 0: three-note ascending chime played when target is reached
 #define SOUND_SONG_NUM          0
 
-//  Structs
+//  Structs 
 
 typedef struct {
     int    start_angle;
@@ -62,7 +62,7 @@ typedef struct {
     double avg_distance;                // average distance to pillars in cluster
 } Cluster;
 
-//  Globals
+//  Globals 
 
 Object   detected_objects[MAX_OBJECTS];
 int      object_count = 0;
@@ -78,7 +78,7 @@ bool complete = false;
 int   ir_raw_values[NUM_SCAN_ANGLES];
 float ping_distances[NUM_SCAN_ANGLES];
 
-//  Function Prototypes
+//  Function Prototypes 
 
 void perform_full_scan(void);
 void detect_objects_from_scan(void);
@@ -98,7 +98,7 @@ void roam(void);
 bool boundary_detected(void);
 
 
-//  Main
+//  Main 
 
 int main(void) {
     timer_init();
@@ -145,7 +145,7 @@ int main(void) {
         switch (command) {
 
             case 's': case 'S':
-
+                
                 uart_sendStr("\r\n>>> Starting autonomous mission...\r\n");
 
                 while (!complete) {
@@ -216,7 +216,7 @@ int main(void) {
 }
 
 
-//  Scanning
+//  Scanning 
 
 /**
  * Sweep 0 - 180, averaging IR_SAMPLES readings at each step.
@@ -250,7 +250,7 @@ void perform_full_scan(void) {
 }
 
 
-//  Detection
+//  Detection 
 
 /**
  * Detect object edges from stored IR data.
@@ -329,7 +329,7 @@ double calculate_linear_width(int angle_diff, double distance) {
 }
 
 
-//  Classification
+//  Classification 
 
 /**
  * Tag each object as thin (< THIN_PILLAR_MAX_WIDTH cm) or large.
@@ -344,7 +344,7 @@ void classify_objects(void) {
 }
 
 
-//  Clustering
+//  Clustering 
 
 /**
  * Group adjacent thin pillars into clusters.
@@ -448,7 +448,7 @@ int find_largest_cluster(void) {
 }
 
 
-//  Sound Guard
+//  Sound Guard 
 
 /**
  * Scan from 60 - 120 (frontal cone) and return true if any large pillar
@@ -476,7 +476,7 @@ bool large_pillar_nearby(int target_angle)
 }
 
 
-//  Sound
+//  Sound 
 
 /**
  * Play the pre-loaded arrival chime (song slot SOUND_SONG_NUM).
@@ -489,7 +489,7 @@ void play_arrival_sound(void) {
 }
 
 
-//  Navigation
+//  Navigation 
 
 /**
  * Turn to face the cluster centroid, drive to within TARGET_DISTANCE cm,
@@ -528,6 +528,18 @@ void navigate_to_cluster(int cluster_index) {
             turn_left(sensor_data, TURN_SPEED, 90);
             return;
         }
+
+        if (hole_detected) {
+            uart_sendStr(">>> Hole during roam!\r\n");
+            oi_setWheels(0,0);
+            move_backward(sensor_data, FORWARD_SPEED, 50);
+            turn_left(sensor_data, TURN_SPEED, 90);
+            move_forward(sensor_data, FORWARD_SPEED, 100);
+            turn_right(sensor_data, TURN_SPEED, 90);
+            return;
+        }
+
+
         bool bump_detected = sensor_data->bumpLeft || sensor_data->bumpRight;
 
         cyBOT_Scan(90, &scan_data);
@@ -542,8 +554,8 @@ void navigate_to_cluster(int cluster_index) {
         if (dist_ahead < OBSTACLE_DISTANCE || bump_detected || boundary_detected()) {
             if (bump_detected) {
                 uart_sendStr(">>> Bump! Initiating bypass...\r\n");
-            }
-
+            } 
+            
             else if (boundary_detected()) {
                 uart_sendStr(">>> Boundary! Initiating bypass...\r\n");
                 oi_setWheels(0, 0);
@@ -602,7 +614,7 @@ void navigate_to_cluster(int cluster_index) {
 }
 
 
-//  Obstacle Avoidance
+//  Obstacle Avoidance 
 
 void avoid_obstacle(void) {
     move_backward(sensor_data, FORWARD_SPEED, 15);
@@ -627,7 +639,7 @@ void avoid_obstacle(void) {
 }
 
 
-//  Display
+//  Display 
 
 /**
  * Print the raw object list with width and thin/large classification.
@@ -686,7 +698,7 @@ void display_cluster_info(void) {
 }
 
 
-//  Manual Control
+//  Manual Control 
 
 void manual_control(char command) {
     switch (command) {
@@ -737,6 +749,13 @@ void roam(void) {
             return;
         }
 
+        if (hole_detected()) {
+            uart_sendStr(">>> Hole during roam!\r\n");
+            move_backward(sensor_data, FORWARD_SPEED, 50);
+            turn_left(sensor_data, TURN_SPEED, 90);
+            return;
+        }
+
         move_forward(sensor_data, FORWARD_SPEED, 10);
     }
 
@@ -744,14 +763,25 @@ void roam(void) {
     turn_left(sensor_data, TURN_SPEED, angle);
 }
 
-// BOUNDARY
+// BOUNDARY 
 bool boundary_detected(void) {
     oi_update(sensor_data);
 
     return (
-        sensor_data->cliffFrontLeftSignal < 2000 ||
-        sensor_data->cliffFrontRightSignal < 2000 ||
-        sensor_data->cliffLeftSignal < 2000 ||
-        sensor_data->cliffRightSignal < 2000
+        sensor_data->cliffFrontLeftSignal < 250 ||
+        sensor_data->cliffFrontRightSignal < 250 ||
+        sensor_data->cliffLeftSignal < 250 ||
+        sensor_data->cliffRightSignal < 250
     );
 }
+
+bool hole_detected(void) {
+    oi_update(sensor_data);
+
+    return (sensor_data->cliffFrontLeftSignal > 2700 ||
+        sensor_data->cliffFrontRightSignal > 2700 ||
+        sensor_data->cliffLeftSignal > 2700 ||
+        sensor_data->cliffRightSignal > 2700
+    );
+}
+
