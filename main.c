@@ -239,10 +239,8 @@ void perform_full_scan(void) {
         ping_distances[index]  = scan_data.sound_dist;
 
         if (angle % 10 == 0) {
-            char line[80];
-            sprintf(line, " %3d   |    %5d       |  %6.1f\r\n",
+            uart_printf(" %3d   |    %5d       |  %6.1f\r\n",
                     angle, ir_raw_values[index], ping_distances[index]);
-            uart_sendStr(line);
         }
         index++;
     }
@@ -294,9 +292,7 @@ void detect_objects_from_scan(void) {
         object_count++;
     }
 
-    char msg[50];
-    sprintf(msg, "Found %d object(s)\r\n\r\n", object_count);
-    uart_sendStr(msg);
+    uart_printf("Found %d object(s)\r\n\r\n", object_count);
 }
 
 /**
@@ -409,10 +405,8 @@ void build_clusters(void) {
         clusters[c].avg_distance = dist_sum  / clusters[c].count;
     }
 
-    char msg[60];
-    sprintf(msg, "Found %d valid cluster(s) (>= %d thin pillars)\r\n\r\n",
+    uart_printf("Found %d valid cluster(s) (>= %d thin pillars)\r\n\r\n",
             cluster_count, MIN_CLUSTER_SIZE);
-    uart_sendStr(msg);
 }
 
 /**
@@ -439,10 +433,8 @@ int find_largest_cluster(void) {
         return -1;
     }
 
-    char msg[100];
-    sprintf(msg, "Largest VALID cluster: #%d (%d pillars)\r\n",
+    uart_printf("Largest VALID cluster: #%d (%d pillars)\r\n",
             best_idx + 1, clusters[best_idx].count);
-    uart_sendStr(msg);
 
     return best_idx;
 }
@@ -502,8 +494,7 @@ void navigate_to_cluster(int cluster_index) {
     uart_sendStr(">>> Navigation started\r\n");
 
     // Step 1: Turn to face cluster centroid
-    sprintf(msg, "Turning to face cluster centroid at %d degrees...\r\n", target.mid_angle);
-    uart_sendStr(msg);
+    uart_printf("Turning to face cluster centroid at %d degrees...\r\n", target.mid_angle);
 
     int turn_angle = target.mid_angle - 90; // 90 = straight ahead
     if (turn_angle > 0) {
@@ -513,8 +504,7 @@ void navigate_to_cluster(int cluster_index) {
     }
 
     // Step 2: Drive forward until within TARGET_DISTANCE cm
-    sprintf(msg, "Approaching cluster (target stop distance: %d cm)...\r\n", TARGET_DISTANCE);
-    uart_sendStr(msg);
+    uart_printf("Approaching cluster (target stop distance: %d cm)...\r\n", TARGET_DISTANCE);
 
     double distance_to_travel = target.avg_distance - TARGET_DISTANCE;
     double distance_traveled  = 0.0;
@@ -601,8 +591,7 @@ void navigate_to_cluster(int cluster_index) {
 
     uart_sendStr(">>> Arrived at cluster!\r\n");
     cyBOT_Scan(90, &scan_data);
-    sprintf(msg, "Final distance to cluster: %.1f cm\r\n", scan_data.sound_dist);
-    uart_sendStr(msg);
+    uart_printf("Final distance to cluster: %.1f cm\r\n", scan_data.sound_dist);
 
     // Step 3: Play sound - only if no large pillar is within range
     if (!large_pillar_nearby(scan_data.sound_dist)) {
@@ -651,8 +640,7 @@ void display_object_info(void) {
 
     int i;
     for (i = 0; i < object_count; i++) {
-        char line[120];
-        sprintf(line, "  %2d |  %3d  | %3d  | %3d  |  %6.1f   |  %6.1f    | %s\r\n",
+        uart_printf("  %2d |  %3d  | %3d  | %3d  |  %6.1f   |  %6.1f    | %s\r\n",
                 i + 1,
                 detected_objects[i].start_angle,
                 detected_objects[i].end_angle,
@@ -660,7 +648,6 @@ void display_object_info(void) {
                 detected_objects[i].distance,
                 detected_objects[i].width,
                 detected_objects[i].is_thin ? "THIN" : "LARGE");
-        uart_sendStr(line);
     }
     uart_sendStr("-----|-------|------|------|-----------|------------|-------\r\n\r\n");
 }
@@ -680,21 +667,17 @@ void display_cluster_info(void) {
 
     int c;
     for (c = 0; c < cluster_count; c++) {
-        char line[100];
-        sprintf(line, "  %2d |    %2d   |      %3d       |    %6.1f\r\n",
+        uart_printf(line, "  %2d |    %2d   |      %3d       |    %6.1f\r\n",
                 c + 1,
                 clusters[c].count,
                 clusters[c].mid_angle,
                 clusters[c].avg_distance);
-        uart_sendStr(line);
     }
     uart_sendStr("-----|---------|----------------|---------------\r\n\r\n");
 
     int best = find_largest_cluster();
-    char msg[80];
-    sprintf(msg, ">>> TARGET: Cluster #%d has the most thin pillars (%d)\r\n\r\n",
+    uart_printf(">>> TARGET: Cluster #%d has the most thin pillars (%d)\r\n\r\n",
             best + 1, clusters[best].count);
-    uart_sendStr(msg);
 }
 
 
@@ -731,9 +714,7 @@ void manual_control(char command) {
     }
 
     cyBOT_Scan(90, &scan_data);
-    char msg[50];
-    sprintf(msg, "Distance ahead: %.1f cm\r\n", scan_data.sound_dist);
-    uart_sendStr(msg);
+    uart_printf("Distance ahead: %.1f cm\r\n", scan_data.sound_dist);
 }
 
 // ROAM
