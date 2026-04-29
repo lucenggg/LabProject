@@ -38,7 +38,7 @@ main.c
 
 //  Cluster Gap Tolerance 
 // Adjacent thin pillars separated by <= this many degrees are treated as one cluster
-#define CLUSTER_GAP_DEG         15
+#define CLUSTER_GAP_DEG         30
 
 //  Sound Configuration (Open Interface Song) 
 // Song 0: three-note ascending chime played when target is reached
