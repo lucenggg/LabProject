@@ -3,6 +3,10 @@
 CyBot Cluster Detection – Control Panel GUI
 CPRE 288 · Team SH-4
 
+Supports two transports:
+  • Serial — direct USB/COM (e.g. when CyBot is tethered for debugging)
+  • TCP    — WiFi over the CyBot router (default 192.168.1.1:288)
+
 Run:   python cybot_gui.py
 Needs: pip install pyserial matplotlib numpy
 """
@@ -12,6 +16,7 @@ from tkinter import ttk, scrolledtext, messagebox
 from typing import Optional
 import serial
 import serial.tools.list_ports
+import socket
 import threading
 import queue
 import re
@@ -48,8 +53,11 @@ class CyBotGUI:
         self.root.minsize(1020, 680)
         self.root.configure(bg=BG_DARK)
 
-        # ── Serial state ──
+        # ── Connection state ──
+        # Transport: "Serial" (USB/COM) or "TCP" (WiFi via CyBot router)
+        self.transport:   str = "Serial"
         self.serial_conn: Optional[serial.Serial] = None
+        self.tcp_sock:    Optional[socket.socket] = None
         self.rx_thread:   Optional[threading.Thread] = None
         self.rx_queue:    queue.Queue = queue.Queue()
         self.connected    = False
@@ -69,6 +77,16 @@ class CyBotGUI:
 
         self._build_ui()
         self._poll_queue()
+        self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+
+    def _on_close(self):
+        """Clean shutdown: stop RX thread and close serial port before exit."""
+        try:
+            if self.connected:
+                self._disconnect()
+        except Exception:
+            pass
+        self.root.destroy()
 
     # ─────────────────────────────────────────────────────────────────────────
     # UI CONSTRUCTION
@@ -126,9 +144,22 @@ class CyBotGUI:
         cc = self._card(parent, "CONNECTION")
         cc.pack(fill=tk.X, pady=(0, 5))
 
-        tk.Label(cc, text="Port", bg=BG_PANEL, fg=FG_WHITE,
+        # Transport selector
+        tk.Label(cc, text="Transport", bg=BG_PANEL, fg=FG_WHITE,
                  font=("Segoe UI", 8)).pack(anchor=tk.W, padx=8, pady=(6, 0))
-        row = tk.Frame(cc, bg=BG_PANEL)
+        self.transport_var = tk.StringVar(value="TCP")
+        trans_cb = ttk.Combobox(cc, textvariable=self.transport_var,
+                                width=16, state="readonly",
+                                values=["Serial", "TCP"])
+        trans_cb.pack(padx=8, pady=2)
+        trans_cb.bind("<<ComboboxSelected>>", self._on_transport_change)
+
+        # ── Serial frame ───────────────────────────────────────
+        self.serial_frame = tk.Frame(cc, bg=BG_PANEL)
+
+        tk.Label(self.serial_frame, text="Port", bg=BG_PANEL, fg=FG_WHITE,
+                 font=("Segoe UI", 8)).pack(anchor=tk.W, padx=8, pady=(6, 0))
+        row = tk.Frame(self.serial_frame, bg=BG_PANEL)
         row.pack(fill=tk.X, padx=8)
         self.port_var = tk.StringVar()
         self.port_cb  = ttk.Combobox(row, textvariable=self.port_var,
@@ -139,11 +170,34 @@ class CyBotGUI:
                   font=("Segoe UI", 11, "bold"),
                   cursor="hand2", padx=4).pack(side=tk.LEFT, padx=(3, 0))
 
-        tk.Label(cc, text="Baud Rate", bg=BG_PANEL, fg=FG_WHITE,
+        tk.Label(self.serial_frame, text="Baud Rate", bg=BG_PANEL, fg=FG_WHITE,
                  font=("Segoe UI", 8)).pack(anchor=tk.W, padx=8, pady=(4, 0))
         self.baud_var = tk.StringVar(value="115200")
-        ttk.Combobox(cc, textvariable=self.baud_var, width=16, state="readonly",
+        ttk.Combobox(self.serial_frame, textvariable=self.baud_var,
+                     width=16, state="readonly",
                      values=["9600", "57600", "115200"]).pack(padx=8, pady=2)
+
+        # ── TCP frame ──────────────────────────────────────────
+        self.tcp_frame = tk.Frame(cc, bg=BG_PANEL)
+
+        tk.Label(self.tcp_frame, text="CyBot IP", bg=BG_PANEL, fg=FG_WHITE,
+                 font=("Segoe UI", 8)).pack(anchor=tk.W, padx=8, pady=(6, 0))
+        self.ip_var = tk.StringVar(value="192.168.1.1")
+        tk.Entry(self.tcp_frame, textvariable=self.ip_var,
+                 bg=BG_CARD, fg=FG_WHITE, insertbackground=FG_WHITE,
+                 relief=tk.FLAT, font=("Consolas", 9)).pack(
+                    fill=tk.X, padx=8, pady=2, ipady=2)
+
+        tk.Label(self.tcp_frame, text="TCP Port", bg=BG_PANEL, fg=FG_WHITE,
+                 font=("Segoe UI", 8)).pack(anchor=tk.W, padx=8, pady=(4, 0))
+        self.tcp_port_var = tk.StringVar(value="288")
+        tk.Entry(self.tcp_frame, textvariable=self.tcp_port_var,
+                 bg=BG_CARD, fg=FG_WHITE, insertbackground=FG_WHITE,
+                 relief=tk.FLAT, font=("Consolas", 9)).pack(
+                    fill=tk.X, padx=8, pady=2, ipady=2)
+
+        # Show the default transport's frame
+        self._on_transport_change()
 
         self.btn_conn = self._btn(cc, "⚡  Connect", self._toggle_conn, bg=BTN_GREEN)
         self.btn_conn.pack(fill=tk.X, padx=8, pady=(4, 8))
@@ -164,7 +218,7 @@ class CyBotGUI:
         # D-Pad card
         dc = self._card(parent, "MANUAL DRIVE")
         dc.pack(fill=tk.X, pady=(0, 5))
-        tk.Label(dc, text="Keys: W A D  (no backward — 'S' starts mission)",
+        tk.Label(dc, text="Keys: W (fwd)  A (left)  S (back)  D (right)",
                  bg=BG_PANEL, fg=FG_YELLOW,
                  font=("Segoe UI", 6), wraplength=200).pack(pady=(5, 2))
 
@@ -174,6 +228,7 @@ class CyBotGUI:
             ("▲", 0, 1, 'w'),
             ("◄", 1, 0, 'a'),
             ("►", 1, 2, 'd'),
+            ("▼", 2, 1, 's'),
         ]
         for txt, row, col, key in dpad_cfg:
             tk.Button(pad, text=txt, bg=BG_CARD, fg=FG_WHITE, relief=tk.FLAT,
@@ -181,13 +236,10 @@ class CyBotGUI:
                       cursor="hand2",
                       command=(lambda k=key: self._manual(k))
                       ).grid(row=row, column=col, padx=3, pady=3)
-        # Center stop button
-        tk.Button(pad, text="■", bg="#3d3d5c", fg=FG_WHITE, relief=tk.FLAT,
-                  font=("Segoe UI", 12, "bold"), width=2, height=1,
-                  state=tk.DISABLED).grid(row=1, column=1, padx=3, pady=3)
 
-        # Keyboard bindings
-        for k in ("w", "a", "d", "W", "A", "D"):
+        # Keyboard bindings (bot accepts 's' as backward in manual mode,
+        # 's' as start-mission in autonomous mode — bot side handles routing)
+        for k in ("w", "a", "s", "d", "W", "A", "S", "D"):
             self.root.bind(f"<{k}>", lambda e, key=k: self._manual(key.lower()))
 
         # Stats card
@@ -366,8 +418,19 @@ class CyBotGUI:
         self.fig_canvas.draw()
 
     # ─────────────────────────────────────────────────────────────────────────
-    # SERIAL CONNECTION
+    # CONNECTION (Serial or TCP)
     # ─────────────────────────────────────────────────────────────────────────
+
+    def _on_transport_change(self, _event=None):
+        """Show only the input fields relevant to the selected transport."""
+        choice = self.transport_var.get()
+        self.transport = choice
+        if choice == "Serial":
+            self.tcp_frame.pack_forget()
+            self.serial_frame.pack(fill=tk.X)
+        else:
+            self.serial_frame.pack_forget()
+            self.tcp_frame.pack(fill=tk.X)
 
     def _refresh_ports(self):
         ports = [p.device for p in serial.tools.list_ports.comports()]
@@ -383,20 +446,51 @@ class CyBotGUI:
             self._connect()
 
     def _connect(self):
+        if self.transport == "Serial":
+            self._connect_serial()
+        else:
+            self._connect_tcp()
+
+    def _connect_serial(self):
         port = self.port_var.get()
         if not port:
             messagebox.showwarning("No port", "Select a serial port first.")
             return
         try:
-            self.serial_conn = serial.Serial(port, int(self.baud_var.get()), timeout=0.05)
+            self.serial_conn = serial.Serial(port, int(self.baud_var.get()),
+                                             timeout=0.05)
             self.connected = True
-            self.btn_conn.config(text="✖  Disconnect", bg=BTN_RED)
-            self.lbl_conn.config(text="● CONNECTED", fg=FG_GREEN)
-            self._log(f"Connected  →  {port}  @  {self.baud_var.get()} baud", "ok")
-            self.rx_thread = threading.Thread(target=self._rx_loop, daemon=True)
-            self.rx_thread.start()
+            self._on_connected(f"Serial  →  {port}  @  {self.baud_var.get()} baud")
         except Exception as exc:
             messagebox.showerror("Connection failed", str(exc))
+
+    def _connect_tcp(self):
+        host = self.ip_var.get().strip()
+        try:
+            port = int(self.tcp_port_var.get())
+        except ValueError:
+            messagebox.showwarning("Bad port", "TCP port must be an integer.")
+            return
+        if not host:
+            messagebox.showwarning("No host", "Enter the CyBot IP address.")
+            return
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(4.0)         # connect timeout
+            sock.connect((host, port))
+            sock.settimeout(0.05)        # short read timeout for rx loop
+            self.tcp_sock = sock
+            self.connected = True
+            self._on_connected(f"TCP     →  {host}:{port}")
+        except Exception as exc:
+            messagebox.showerror("Connection failed", str(exc))
+
+    def _on_connected(self, label: str):
+        self.btn_conn.config(text="✖  Disconnect", bg=BTN_RED)
+        self.lbl_conn.config(text="● CONNECTED", fg=FG_GREEN)
+        self._log(f"Connected  →  {label}", "ok")
+        self.rx_thread = threading.Thread(target=self._rx_loop, daemon=True)
+        self.rx_thread.start()
 
     def _disconnect(self):
         self.connected = False
@@ -405,15 +499,33 @@ class CyBotGUI:
                 self.serial_conn.close()
         except Exception:
             pass
+        try:
+            if self.tcp_sock:
+                self.tcp_sock.close()
+        except Exception:
+            pass
+        self.serial_conn = None
+        self.tcp_sock    = None
         self.btn_conn.config(text="⚡  Connect", bg=BTN_GREEN)
         self.lbl_conn.config(text="● DISCONNECTED", fg=FG_RED)
         self._log("Disconnected.", "warn")
+
+    def _read_bytes(self) -> bytes:
+        """Transport-agnostic non-blocking read. Returns b'' if no data."""
+        if self.transport == "Serial" and self.serial_conn:
+            return self.serial_conn.read(512)
+        if self.transport == "TCP" and self.tcp_sock:
+            try:
+                return self.tcp_sock.recv(512)
+            except socket.timeout:
+                return b""
+        return b""
 
     def _rx_loop(self):
         buf = ""
         while self.connected:
             try:
-                raw = self.serial_conn.read(512)
+                raw = self._read_bytes()
                 if raw:
                     buf += raw.decode("utf-8", errors="replace")
                     while "\n" in buf:
@@ -622,13 +734,19 @@ class CyBotGUI:
     # ─────────────────────────────────────────────────────────────────────────
 
     def _send(self, cmd: str):
-        if self.connected and self.serial_conn:
-            try:
-                self.serial_conn.write(cmd.encode())
-            except Exception as exc:
-                self._log(f"Send error: {exc}", "err")
-        else:
+        if not self.connected:
             self._log("Not connected — cannot send command.", "warn")
+            return
+        try:
+            data = cmd.encode()
+            if self.transport == "Serial" and self.serial_conn:
+                self.serial_conn.write(data)
+            elif self.transport == "TCP" and self.tcp_sock:
+                self.tcp_sock.sendall(data)
+            else:
+                self._log("No transport open — cannot send command.", "warn")
+        except Exception as exc:
+            self._log(f"Send error: {exc}", "err")
 
     def _cmd_start(self):
         self.stat_vars["Status"].set("Running…")
