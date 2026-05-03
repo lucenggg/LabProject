@@ -519,7 +519,7 @@ void navigate_to_cluster(int cluster_index) {
             return;
         }
 
-        if (hole_detected) {
+        if (hole_detected()) {
             uart_sendStr(">>> Hole during roam!\r\n");
             oi_setWheels(0,0);
             move_backward(sensor_data, FORWARD_SPEED, 50);
@@ -530,7 +530,8 @@ void navigate_to_cluster(int cluster_index) {
         }
 
 
-        bool bump_detected = sensor_data->bumpLeft || sensor_data->bumpRight;
+        bool bump_detected_left = sensor_data->bumpLeft;
+        bool bump_detected_right = sensor_data->bumpRight;
 
         cyBOT_Scan(90, &scan_data);
         double dist_ahead = scan_data.sound_dist;
@@ -541,12 +542,30 @@ void navigate_to_cluster(int cluster_index) {
             break;
         }
 
-        if (dist_ahead < OBSTACLE_DISTANCE || bump_detected || boundary_detected()) {
-            if (bump_detected) {
-                uart_sendStr(">>> Bump! Initiating bypass...\r\n");
-            } 
+        if (bump_detected_left) {
+            uart_sendStr(">>> Left Bump detected! Initiating bypass...\r\n");
+            oi_setWheels(0, 0);
+            move_backward(sensor_data, FORWARD_SPEED, 100);
+            turn_right(sensor_data, TURN_SPEED, 90);
+            move_forward(sensor_data, FORWARD_SPEED, 100);
+            turn_left(sensor_data, TURN_SPEED, 90);
+            return;
+        }
+
+        else if (bump_detected_right) {
+            uart_sendStr(">>> Right bump detected! Initiating bypass...\r\n");
+            oi_setWheels(0, 0);
+            move_backward(sensor_data, FORWARD_SPEED, 100);
+            turn_left(sensor_data, TURN_SPEED, 90);
+            move_forward(sensor_data, FORWARD_SPEED, 100);
+            turn_right(sensor_data, TURN_SPEED, 90);
+            return;
+        }
+
+        if (dist_ahead < OBSTACLE_DISTANCE || boundary_detected()) {
             
-            else if (boundary_detected()) {
+            
+            if (boundary_detected()) {
                 uart_sendStr(">>> Boundary! Initiating bypass...\r\n");
                 oi_setWheels(0, 0);
                 move_backward(sensor_data, 100);
@@ -737,6 +756,7 @@ void roam(void) {
             return;
         }
 
+
         move_forward(sensor_data, FORWARD_SPEED, 10);
     }
 
@@ -752,20 +772,22 @@ bool boundary_detected(void) {
     oi_update(sensor_data);
 
     return (
-        sensor_data->cliffFrontLeftSignal < CLIFF_SENSOR_THRESHOLD_WHITE ||
-        sensor_data->cliffFrontRightSignal < CLIFF_SENSOR_THRESHOLD_WHITE ||
-        sensor_data->cliffLeftSignal < CLIFF_SENSOR_THRESHOLD_WHITE ||
-        sensor_data->cliffRightSignal < CLIFF_SENSOR_THRESHOLD_WHITE
+        sensor_data->cliffFrontLeftSignal > CLIFF_SENSOR_THRESHOLD_WHITE ||
+        sensor_data->cliffFrontRightSignal > CLIFF_SENSOR_THRESHOLD_WHITE ||
+        sensor_data->cliffLeftSignal > CLIFF_SENSOR_THRESHOLD_WHITE ||
+        sensor_data->cliffRightSignal > CLIFF_SENSOR_THRESHOLD_WHITE
     );
 }
 
 bool hole_detected(void) {
     oi_update(sensor_data);
 
-    return (sensor_data->cliffFrontLeftSignal > CLIFF_SENSOR_THRESHOLD_BLACK ||
-        sensor_data->cliffFrontRightSignal > CLIFF_SENSOR_THRESHOLD_BLACK ||
-        sensor_data->cliffLeftSignal > CLIFF_SENSOR_THRESHOLD_BLACK ||
-        sensor_data->cliffRightSignal > CLIFF_SENSOR_THRESHOLD_BLACK
+    return (sensor_data->cliffFrontLeftSignal < CLIFF_SENSOR_THRESHOLD_BLACK ||
+        sensor_data->cliffFrontRightSignal < CLIFF_SENSOR_THRESHOLD_BLACK ||
+        sensor_data->cliffLeftSignal < CLIFF_SENSOR_THRESHOLD_BLACK ||
+        sensor_data->cliffRightSignal < CLIFF_SENSOR_THRESHOLD_BLACK
     );
 }
+
+
 
