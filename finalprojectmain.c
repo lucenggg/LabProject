@@ -32,7 +32,10 @@ main.c
 #define NUM_SCAN_ANGLES         ((180 / SCAN_RESOLUTION) + 1)
 
 //  Object Classification Thresholds 
-#define IR_OBJECT_RAW_THRESHOLD 250     // Raw IR jump to detect an object edge
+#define IR_EDGE_THRESHOLD      200   // lower than before (more sensitive)
+#define PING_OBJECT_MAX_DIST   100   // cm (anything closer is "real")
+#define PING_CONFIRM_SAMPLES   2     // number of confirmations
+#define MIN_OBJECT_ANGLE       4
 #define THIN_PILLAR_MAX_WIDTH   15.0    // Max width (cm) for a "thin" pillar
 #define MIN_CLUSTER_SIZE        3       // Minimum pillars to qualify as a cluster
 
@@ -257,33 +260,63 @@ void perform_full_scan(void) {
  */
 void detect_objects_from_scan(void) {
     object_count = 0;
-    bool in_object  = false;
-    int  start_angle = 0;
 
-    uart_sendStr("Detecting objects from scan data...\r\n");
+    bool in_object = false;
+    int start_angle = 0;
 
-    int i;
-    for (i = 1; i < NUM_SCAN_ANGLES; i++) {
-        int raw_diff = ir_raw_values[i] - ir_raw_values[i - 1];
+    uart_sendStr("Detecting objects using IR + PING...\r\n");
 
-        if (!in_object && raw_diff > IR_OBJECT_RAW_THRESHOLD) {
-            in_object   = true;
-            start_angle = i * SCAN_RESOLUTION;
-        } else if (in_object && raw_diff < -IR_OBJECT_RAW_THRESHOLD) {
+    for (int i = 1; i < NUM_SCAN_ANGLES; i++) {
+
+        int ir_diff = ir_raw_values[i] - ir_raw_values[i - 1];
+        int angle = i * SCAN_RESOLUTION;
+
+        double ping = ping_distances[i];
+
+        // --- ENTER OBJECT ---
+        if (!in_object && ir_diff > IR_EDGE_THRESHOLD) {
+
+            // Confirm with PING (object must be reasonably close)
+            if (ping < PING_OBJECT_MAX_DIST) {
+                in_object = true;
+                start_angle = angle;
+            }
+        }
+
+        // --- EXIT OBJECT ---
+        else if (in_object && ir_diff < -IR_EDGE_THRESHOLD) {
+
             int end_angle = (i - 1) * SCAN_RESOLUTION;
 
-            if (end_angle - start_angle >= 2 && object_count < MAX_OBJECTS) {
+            // Validate object using PING consistency
+            int mid_index = (i + (start_angle / SCAN_RESOLUTION)) / 2;
+            int valid_count = 0;
+
+            for (int j = -1; j <= 1; j++) {
+                int idx = mid_index + j;
+                if (idx >= 0 && idx < NUM_SCAN_ANGLES) {
+                    if (ping_distances[idx] < PING_OBJECT_MAX_DIST) {
+                        valid_count++;
+                    }
+                }
+            }
+
+            if (valid_count >= PING_CONFIRM_SAMPLES &&
+                (end_angle - start_angle) >= MIN_OBJECT_ANGLE &&
+                object_count < MAX_OBJECTS)
+            {
                 detected_objects[object_count].start_angle = start_angle;
                 detected_objects[object_count].end_angle   = end_angle;
                 detected_objects[object_count].mid_angle   = (start_angle + end_angle) / 2;
-                detected_objects[object_count].is_thin     = false; // set after width calc
+                detected_objects[object_count].is_thin     = false;
                 object_count++;
             }
+
             in_object = false;
         }
     }
 
-    // Handle object that extends to 180 degrees
+    // Handle object reaching 180°
     if (in_object && object_count < MAX_OBJECTS) {
         detected_objects[object_count].start_angle = start_angle;
         detected_objects[object_count].end_angle   = 180;
@@ -302,15 +335,35 @@ void detect_objects_from_scan(void) {
 void calculate_object_widths(void) {
     uart_sendStr("Calculating object widths...\r\n");
 
-    int i;
-    for (i = 0; i < object_count; i++) {
-        cyBOT_Scan(detected_objects[i].mid_angle, &scan_data);
-        timer_waitMillis(100);
+    for (int i = 0; i < object_count; i++) {
 
-        detected_objects[i].distance = scan_data.sound_dist;
+        int mid = detected_objects[i].mid_angle;
+        int left = detected_objects[i].start_angle;
+        int right = detected_objects[i].end_angle;
 
-        int angle_diff = detected_objects[i].end_angle - detected_objects[i].start_angle;
-        detected_objects[i].width    = calculate_linear_width(angle_diff, detected_objects[i].distance);
+        double mid_dist = 0, left_dist = 0, right_dist = 0;
+
+        // Average PING at midpoint
+        for (int j = 0; j < 3; j++) {
+            cyBOT_Scan(mid, &scan_data);
+            timer_waitMillis(40);
+            mid_dist += scan_data.sound_dist;
+        }
+        mid_dist /= 3.0;
+
+        // Optional: edge distances (helps accuracy)
+        cyBOT_Scan(left, &scan_data);
+        left_dist = scan_data.sound_dist;
+
+        cyBOT_Scan(right, &scan_data);
+        right_dist = scan_data.sound_dist;
+
+        // Use midpoint distance (most stable)
+        detected_objects[i].distance = mid_dist;
+
+        int angle_diff = right - left;
+
+        detected_objects[i].width = calculate_linear_width(angle_diff, mid_dist);
     }
 
     uart_sendStr("Width calculation complete!\r\n\r\n");
