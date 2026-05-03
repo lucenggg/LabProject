@@ -242,7 +242,7 @@ void perform_full_scan(void) {
         ping_distances[index]  = scan_data.sound_dist;
 
         if (angle % 10 == 0) {
-            uart_printf(" %3d   |    %5d       |  %6.1f\r\n",
+            uart_sendStr(" %3d   |    %5d       |  %6.1f\r\n",
                     angle, ir_raw_values[index], ping_distances[index]);
         }
         index++;
@@ -325,7 +325,7 @@ void detect_objects_from_scan(void) {
         object_count++;
     }
 
-    uart_printf("Found %d object(s)\r\n\r\n", object_count);
+    uart_sendStr("Found %d object(s)\r\n\r\n", object_count);
 }
 
 /**
@@ -458,7 +458,7 @@ void build_clusters(void) {
         clusters[c].avg_distance = dist_sum  / clusters[c].count;
     }
 
-    uart_printf("Found %d valid cluster(s) (>= %d thin pillars)\r\n\r\n",
+    uart_sendStr("Found %d valid cluster(s) (>= %d thin pillars)\r\n\r\n",
             cluster_count, MIN_CLUSTER_SIZE);
 }
 
@@ -486,7 +486,7 @@ int find_largest_cluster(void) {
         return -1;
     }
 
-    uart_printf("Largest VALID cluster: #%d (%d pillars)\r\n",
+    uart_sendStr("Largest VALID cluster: #%d (%d pillars)\r\n",
             best_idx + 1, clusters[best_idx].count);
 
     return best_idx;
@@ -500,7 +500,7 @@ int find_largest_cluster(void) {
  * (>= THIN_PILLAR_MAX_WIDTH cm wide) is detected within TARGET_DISTANCE + 20 cm.
  * Used to suppress the sound when a large obstacle is present.
  */
-bool large_pillar_nearby(int target_angle)
+bool large_pillar_nearby(double target_angle)
 {
     int i;
 
@@ -663,7 +663,7 @@ void navigate_to_cluster(int cluster_index) {
 
     uart_sendStr(">>> Arrived at cluster!\r\n");
     cyBOT_Scan(90, &scan_data);
-    uart_printf("Final distance to cluster: %.1f cm\r\n", scan_data.sound_dist);
+    uart_sendStr("Final distance to cluster: %.1f cm\r\n", scan_data.sound_dist);
 
     // Step 3: Play sound - only if no large pillar is within range
     if (!large_pillar_nearby(scan_data.sound_dist)) {
@@ -712,7 +712,7 @@ void display_object_info(void) {
 
     int i;
     for (i = 0; i < object_count; i++) {
-        uart_printf("  %2d |  %3d  | %3d  | %3d  |  %6.1f   |  %6.1f    | %s\r\n",
+        uart_sendStr("  %2d |  %3d  | %3d  | %3d  |  %6.1f   |  %6.1f    | %s\r\n",
                 i + 1,
                 detected_objects[i].start_angle,
                 detected_objects[i].end_angle,
@@ -748,7 +748,7 @@ void display_cluster_info(void) {
     uart_sendStr("-----|---------|----------------|---------------\r\n\r\n");
 
     int best = find_largest_cluster();
-    uart_printf(">>> TARGET: Cluster #%d has the most thin pillars (%d)\r\n\r\n",
+    uart_sendStr(">>> TARGET: Cluster #%d has the most thin pillars (%d)\r\n\r\n",
             best + 1, clusters[best].count);
 }
 
@@ -786,7 +786,7 @@ void manual_control(char command) {
     }
 
     cyBOT_Scan(90, &scan_data);
-    uart_printf("Distance ahead: %.1f cm\r\n", scan_data.sound_dist);
+    uart_sendStr("Distance ahead: %.1f cm\r\n", scan_data.sound_dist);
 }
 
 // ROAM
