@@ -229,6 +229,7 @@ void perform_full_scan(void) {
     uart_sendStr("Scanning 0-180 degrees...\r\n");
     uart_sendStr("Angle  |  IR Raw (avg)  |  PING (cm)\r\n");
     uart_sendStr("-------|----------------|----------\r\n");
+    char line[100];
 
     int angle, index = 0;
     for (angle = 0; angle <= 180; angle += SCAN_RESOLUTION) {
@@ -242,8 +243,9 @@ void perform_full_scan(void) {
         ping_distances[index]  = scan_data.sound_dist;
 
         if (angle % 10 == 0) {
-            uart_sendStr(" %3d   |    %5d       |  %6.1f\r\n",
+            sprintf(line, " %3d   |    %5d       |  %6.1f\r\n",
                     angle, ir_raw_values[index], ping_distances[index]);
+            uart_sendStr(line);
         }
         index++;
     }
@@ -263,6 +265,7 @@ void detect_objects_from_scan(void) {
 
     bool in_object = false;
     int start_angle = 0;
+    char msg[50];
 
     uart_sendStr("Detecting objects using IR + PING...\r\n");
 
@@ -325,7 +328,8 @@ void detect_objects_from_scan(void) {
         object_count++;
     }
 
-    uart_sendStr("Found %d object(s)\r\n\r\n", object_count);
+    sprintf(msg, "Found %d object(s)\r\n\r\n", object_count);
+    uart_sendStr(msg);
 }
 
 /**
@@ -411,6 +415,7 @@ void build_clusters(void) {
     int i;
     Cluster current;
     current.count = 0;
+    char msg[120];
 
     for (i = 0; i < object_count; i++) {
         if (!detected_objects[i].is_thin) continue; // skip large pillars
@@ -458,8 +463,9 @@ void build_clusters(void) {
         clusters[c].avg_distance = dist_sum  / clusters[c].count;
     }
 
-    uart_sendStr("Found %d valid cluster(s) (>= %d thin pillars)\r\n\r\n",
+    sprintf(msg, "Found %d valid cluster(s) (>= %d thin pillars)\r\n\r\n",
             cluster_count, MIN_CLUSTER_SIZE);
+    uart_sendStr(msg);
 }
 
 /**
@@ -469,6 +475,7 @@ int find_largest_cluster(void) {
     int best_idx = -1;
     int best_count = 0;
 
+    char msg[100];
     int i;
     for (i = 0; i < cluster_count; i++) {
 
@@ -486,8 +493,9 @@ int find_largest_cluster(void) {
         return -1;
     }
 
-    uart_sendStr("Largest VALID cluster: #%d (%d pillars)\r\n",
+    sprintf(msg, "Largest VALID cluster: #%d (%d pillars)\r\n",
             best_idx + 1, clusters[best_idx].count);
+    uart_sendStr(msg);
 
     return best_idx;
 }
@@ -557,7 +565,7 @@ void navigate_to_cluster(int cluster_index) {
     }
 
     // Step 2: Drive forward until within TARGET_DISTANCE cm
-    uart_printf("Approaching cluster (target stop distance: %d cm)...\r\n", TARGET_DISTANCE);
+    sprintf(msg,"Approaching cluster (target stop distance: %d cm)...\r\n", TARGET_DISTANCE);
 
     double distance_to_travel = target.avg_distance - TARGET_DISTANCE;
     double distance_traveled  = 0.0;
@@ -711,8 +719,9 @@ void display_object_info(void) {
     uart_sendStr("-----|-------|------|------|-----------|------------|-------\r\n");
 
     int i;
+    char line[150];
     for (i = 0; i < object_count; i++) {
-        uart_sendStr("  %2d |  %3d  | %3d  | %3d  |  %6.1f   |  %6.1f    | %s\r\n",
+        sprintf(line, "  %2d |  %3d  | %3d  | %3d  |  %6.1f   |  %6.1f    | %s\r\n",
                 i + 1,
                 detected_objects[i].start_angle,
                 detected_objects[i].end_angle,
@@ -720,6 +729,7 @@ void display_object_info(void) {
                 detected_objects[i].distance,
                 detected_objects[i].width,
                 detected_objects[i].is_thin ? "THIN" : "LARGE");
+        uart_sendStr(line);
     }
     uart_sendStr("-----|-------|------|------|-----------|------------|-------\r\n\r\n");
 }
@@ -738,12 +748,14 @@ void display_cluster_info(void) {
     uart_sendStr("-----|---------|----------------|---------------\r\n");
 
     int c;
+    char line[120];
     for (c = 0; c < cluster_count; c++) {
-        uart_printf(line, "  %2d |    %2d   |      %3d       |    %6.1f\r\n",
+        sprintf(line, "  %2d |    %2d   |      %3d       |    %6.1f\r\n",
                 c + 1,
                 clusters[c].count,
                 clusters[c].mid_angle,
                 clusters[c].avg_distance);
+        uart_sendStr(line);
     }
     uart_sendStr("-----|---------|----------------|---------------\r\n\r\n");
 
