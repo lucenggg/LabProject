@@ -271,41 +271,51 @@ void detect_objects_from_scan(void) {
     bool in_object = false;
     int start_index = 0;
 
-    uart_sendStr("Detecting objects (IR + PING)...\r\n");
+    uart_sendStr("Detecting objects (FIXED IR + PING)...\r\n");
 
     for (int i = 1; i < NUM_SCAN_ANGLES; i++) {
 
         int ir_diff = ir_raw_values[i] - ir_raw_values[i - 1];
 
-        double ping = ping_distances[i];
-
-        // --- ENTER OBJECT ---
-        if (!in_object &&
-            ir_diff > IR_EDGE_THRESHOLD &&
-            ping < PING_OBJECT_MAX_DIST)
-        {
+        // --- ENTER OBJECT (IR ONLY) ---
+        if (!in_object && ir_diff > IR_EDGE_THRESHOLD) {
             in_object = true;
             start_index = i;
         }
 
-        // --- EXIT OBJECT ---
-        else if (in_object &&
-                 ir_diff < -IR_EDGE_THRESHOLD &&
-                 ping > PING_OBJECT_MAX_DIST)
-        {
+        // --- EXIT OBJECT (IR ONLY) ---
+        else if (in_object && ir_diff < -IR_EDGE_THRESHOLD) {
+
             int end_index = i - 1;
 
-            int start_angle = start_index * SCAN_RESOLUTION;
-            int end_angle   = end_index   * SCAN_RESOLUTION;
+            // --- NOW validate using PING over region ---
+            int valid_count = 0;
+            int total = 0;
 
-            if ((end_angle - start_angle) >= MIN_OBJECT_ANGLE &&
-                object_count < MAX_OBJECTS)
-            {
-                detected_objects[object_count].start_angle = start_angle;
-                detected_objects[object_count].end_angle   = end_angle;
-                detected_objects[object_count].mid_angle   = (start_angle + end_angle) / 2;
-                detected_objects[object_count].is_thin     = false;
-                object_count++;
+            for (int j = start_index; j <= end_index; j++) {
+                if (ping_distances[j] < PING_OBJECT_MAX_DIST) {
+                    valid_count++;
+                }
+                total++;
+            }
+
+            // Require at least 30% of points to be "close"
+            if (total > 0 && (valid_count > total * 0.3)) {
+
+                int start_angle = start_index * SCAN_RESOLUTION;
+                int end_angle   = end_index   * SCAN_RESOLUTION;
+
+                if ((end_angle - start_angle) >= MIN_OBJECT_ANGLE &&
+                    object_count < MAX_OBJECTS)
+                {
+                    detected_objects[object_count].start_angle = start_angle;
+                    detected_objects[object_count].end_angle   = end_angle;
+                    detected_objects[object_count].mid_angle   =
+                        (start_angle + end_angle) / 2;
+                    detected_objects[object_count].is_thin = false;
+
+                    object_count++;
+                }
             }
 
             in_object = false;
@@ -314,11 +324,15 @@ void detect_objects_from_scan(void) {
 
     // Handle object reaching 180°
     if (in_object && object_count < MAX_OBJECTS) {
-        detected_objects[object_count].start_angle = start_index * SCAN_RESOLUTION;
-        detected_objects[object_count].end_angle   = 180;
+        int start_angle = start_index * SCAN_RESOLUTION;
+        int end_angle = 180;
+
+        detected_objects[object_count].start_angle = start_angle;
+        detected_objects[object_count].end_angle   = end_angle;
         detected_objects[object_count].mid_angle   =
-            (detected_objects[object_count].start_angle + 180) / 2;
+            (start_angle + end_angle) / 2;
         detected_objects[object_count].is_thin = false;
+
         object_count++;
     }
 
@@ -862,3 +876,6 @@ bool hole_detected(void) {
         sensor_data->cliffRightSignal < CLIFF_SENSOR_THRESHOLD_BLACK
     );
 }
+
+
+
